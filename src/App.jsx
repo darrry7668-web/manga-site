@@ -1,6 +1,6 @@
 
 
-Manga site · JSX
+// Manga site · JSX
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart } from "lucide-react";
  
