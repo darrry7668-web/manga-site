@@ -56,12 +56,20 @@ function MockPage({ chapterNum, pageNum }) {
 }
 
 // ---------- شعار "كاغي" — مربع أسود بزوايا ناعمة وكانجي أحمر متوهج ----------
-function KagiSeal({ size = 46, showLabel = false }) {
+function KagiSeal({ size = 46, showLabel = false, logoUrl = null }) {
   return (
     <div className="seal-wrap" title="كاغي 影">
-      <div className="seal-mark" style={{ width: size, height: size, fontSize: size * 0.52 }}>
-        影
-      </div>
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt="كاغي 影"
+          style={{ width: size, height: size, borderRadius: 8, objectFit: "cover" }}
+        />
+      ) : (
+        <div className="seal-mark" style={{ width: size, height: size, fontSize: size * 0.52 }}>
+          影
+        </div>
+      )}
       {showLabel && <span className="seal-label">كاغي</span>}
     </div>
   );
@@ -87,6 +95,7 @@ export default function App() {
   const [chapters, setChapters] = useState([]);
   const [chaptersLoading, setChaptersLoading] = useState(true);
   const [chapterPages, setChapterPages] = useState([]); // روابط صور الفصل المفتوح حالياً
+  const [logoUrl, setLogoUrl] = useState(null);
 
   // ---------- جلب قائمة الفصول من قاعدة البيانات (تتحدث بدون أي تعديل بالكود) ----------
   async function refetchChapters() {
@@ -98,8 +107,19 @@ export default function App() {
     setChaptersLoading(false);
   }
 
+  // ---------- جلب رابط الشعار من إعدادات الموقع (لو محطوط) ----------
+  async function refetchLogo() {
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "logo_url")
+      .maybeSingle();
+    if (data?.value) setLogoUrl(data.value);
+  }
+
   useEffect(() => {
     refetchChapters();
+    refetchLogo();
   }, []);
 
   // ---------- جلب صور صفحات الفصل المفتوح ----------
@@ -920,7 +940,7 @@ export default function App() {
             onClick={() => setView("landing")}
             style={{ cursor: "pointer" }}
           >
-            <KagiSeal size={38} />
+            <KagiSeal size={38} logoUrl={logoUrl} />
           </div>
           <div
             className="brand-name"
@@ -1217,7 +1237,7 @@ export default function App() {
                   : { background: "var(--card-grad)" }
               }
             >
-              <KagiSeal size={54} />
+              <KagiSeal size={54} logoUrl={logoUrl} />
               <div className="cover-title">{MANGA.title}</div>
             </div>
             <div className="meta">
