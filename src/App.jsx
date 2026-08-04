@@ -1,10 +1,10 @@
 // Manga site · JSX
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette, User, LogOut, X, Eye, EyeOff, Camera } from "lucide-react";
+import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette, User, LogOut, X, Eye, EyeOff, Camera, Pencil, Check } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 // ---------- غيّر هذا لإيميلك عشان يصير حسابك هو الأدمن ----------
-const ADMIN_EMAIL = "dary776688@email.com";
+const ADMIN_EMAIL = "dary776688@gmail.com";
 
 // ---------- بيانات تجريبية (استبدلها لاحقاً بمانجتك وفصولك) ----------
 const MANGA = {
@@ -104,6 +104,10 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameSaving, setUsernameSaving] = useState(false);
 
   const isAdmin = !!user && user.email === ADMIN_EMAIL;
 
@@ -119,18 +123,69 @@ export default function App() {
   }, []);
 
   // ---------- جلب بروفايل المستخدم (الاسم والصورة) بعد تسجيل الدخول ----------
+  async function refetchProfile(userId) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
+    setProfile(data);
+  }
+
   useEffect(() => {
     if (!user) {
       setProfile(null);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("username, avatar_url")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => setProfile(data));
+    refetchProfile(user.id);
   }, [user]);
+
+  // ---------- إعادة جلب البروفايل تلقائياً لما ترجع لتبويب الموقع (يحدّث الصورة لو انرفعت من جهاز ثاني) ----------
+  useEffect(() => {
+    if (!user) return;
+    function onFocus() {
+      refetchProfile(user.id);
+    }
+    window.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [user]);
+
+  async function saveUsername() {
+    const clean = newUsername.trim();
+    setUsernameError("");
+    if (clean.length < 3) {
+      setUsernameError("3 أحرف على الأقل.");
+      return;
+    }
+    if (clean === profile?.username) {
+      setEditingUsername(false);
+      return;
+    }
+    setUsernameSaving(true);
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .ilike("username", clean)
+      .neq("id", user.id)
+      .maybeSingle();
+    if (existing) {
+      setUsernameError("هذا الاسم مستخدم من قبل.");
+      setUsernameSaving(false);
+      return;
+    }
+    const { error } = await supabase.from("profiles").update({ username: clean }).eq("id", user.id);
+    if (error) {
+      setUsernameError("صار خطأ، حاول مرة ثانية.");
+    } else {
+      setProfile((p) => ({ ...(p || {}), username: clean }));
+      setEditingUsername(false);
+    }
+    setUsernameSaving(false);
+  }
 
   async function handleAvatarUpload(e) {
     const file = e.target.files?.[0];
@@ -526,6 +581,26 @@ export default function App() {
         .account-email { font-weight:700; font-size:15px; }
         .account-role { color: var(--muted); font-size:12px; margin-top:2px; }
 
+        .account-centered {
+          display:flex; flex-direction:column; align-items:center; text-align:center;
+          padding: 20px 0 10px;
+        }
+        .avatar-upload-lg { width: 96px; height: 96px; margin-bottom: 16px; }
+        .avatar-upload-lg .avatar-edit-badge {
+          width:28px; height:28px; bottom:2px; left:2px;
+        }
+        .username-row { display:flex; align-items:center; gap:8px; }
+        .username-row .account-email { font-size: 18px; }
+        .icon-round-btn {
+          width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+          background: rgba(var(--text-rgb),0.08); border:1px solid rgba(var(--text-rgb),0.16);
+          color: var(--text); cursor:pointer; flex-shrink:0;
+        }
+        .icon-round-btn:hover { border-color: var(--accent); }
+        .username-edit-row { display:flex; align-items:center; gap:8px; width:100%; max-width:280px; }
+        .username-edit-input { text-align:center; }
+        .account-signout { margin-top: 26px; }
+
         /* ---------- شريط علوي: تنقّل + تصنيفات + بحث ---------- */
         .nav-links { display:flex; align-items:center; gap: 22px; }
         .nav-link {
@@ -862,7 +937,7 @@ export default function App() {
             className={`nav-link ${view === "more" ? "active" : ""}`}
             onClick={() => setView("more")}
           >
-            المزيد
+            حسابي
           </button>
           {user ? (
             <button className="account-chip" onClick={() => setView("more")}>
@@ -1224,39 +1299,73 @@ export default function App() {
       {view === "more" && (
         <>
           <div className="section-title" style={{ marginTop: 24 }}>
-            <h2>المزيد</h2>
+            <h2>حسابي</h2>
             <div className="rule" />
           </div>
           <div className="account-card">
             {user ? (
-              <>
-                <div className="account-row">
-                  <label className="avatar-upload">
-                    {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="" className="avatar-img" />
-                    ) : (
-                      <div className="avatar-fallback"><User size={22} /></div>
-                    )}
-                    <div className="avatar-edit-badge">
-                      {avatarUploading ? "..." : <Camera size={12} />}
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={handleAvatarUpload}
-                      disabled={avatarUploading}
-                    />
-                  </label>
-                  <div>
-                    <div className="account-email">{profile?.username || user.email.split("@")[0]}</div>
-                    <div className="account-role">{isAdmin ? "حساب الأدمن" : "قارئ"} — {user.email}</div>
+              <div className="account-centered">
+                <label className="avatar-upload avatar-upload-lg">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="avatar-img" />
+                  ) : (
+                    <div className="avatar-fallback"><User size={36} /></div>
+                  )}
+                  <div className="avatar-edit-badge">
+                    {avatarUploading ? "..." : <Camera size={14} />}
                   </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={handleAvatarUpload}
+                    disabled={avatarUploading}
+                  />
+                </label>
+
+                {editingUsername ? (
+                  <div className="username-edit-row">
+                    <input
+                      className="auth-input username-edit-input"
+                      value={newUsername}
+                      onChange={(e) => setNewUsername(e.target.value)}
+                      autoFocus
+                    />
+                    <button className="icon-round-btn" onClick={saveUsername} disabled={usernameSaving}>
+                      <Check size={16} />
+                    </button>
+                    <button
+                      className="icon-round-btn"
+                      onClick={() => { setEditingUsername(false); setUsernameError(""); }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="username-row">
+                    <div className="account-email">{profile?.username || user.email.split("@")[0]}</div>
+                    <button
+                      className="icon-round-btn"
+                      onClick={() => {
+                        setNewUsername(profile?.username || "");
+                        setEditingUsername(true);
+                      }}
+                      aria-label="تعديل الاسم"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </div>
+                )}
+                {usernameError && <div className="auth-error">{usernameError}</div>}
+
+                <div className="account-role" style={{ marginTop: 4 }}>
+                  {isAdmin ? "حساب الأدمن" : "قارئ"} — {user.email}
                 </div>
-                <button className="btn-ghost" onClick={handleSignOut}>
+
+                <button className="btn-ghost account-signout" onClick={handleSignOut}>
                   <LogOut size={16} /> تسجيل الخروج
                 </button>
-              </>
+              </div>
             ) : (
               <>
                 <p style={{ color: "var(--muted)", marginBottom: 14 }}>
@@ -1302,7 +1411,7 @@ export default function App() {
           onClick={() => setView("more")}
         >
           <span className="bn-more-dot">•••</span>
-          <span>المزيد</span>
+          <span>حسابي</span>
         </button>
       </div>
     </div>
