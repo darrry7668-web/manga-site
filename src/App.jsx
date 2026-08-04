@@ -179,11 +179,10 @@ export default function App() {
     }
     const { data: updated, error } = await supabase
       .from("profiles")
-      .update({ username: clean })
-      .eq("id", user.id)
+      .upsert({ id: user.id, username: clean }, { onConflict: "id" })
       .select();
     if (error || !updated || updated.length === 0) {
-      setUsernameError("ما انحفظ فعلياً — تأكد إن صلاحيات الجدول (RLS) مضبوطة صح.");
+      setUsernameError("ما انحفظ فعلياً: " + (error?.message || "خطأ غير معروف"));
     } else {
       setProfile((p) => ({ ...(p || {}), username: clean }));
       setEditingUsername(false);
@@ -204,15 +203,18 @@ export default function App() {
     if (!uploadError) {
       const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
       const avatarUrl = `${pub.publicUrl}?t=${Date.now()}`;
+      const fallbackUsername = profile?.username || user.email.split("@")[0];
       const { data: updated, error: dbError } = await supabase
         .from("profiles")
-        .update({ avatar_url: avatarUrl })
-        .eq("id", user.id)
+        .upsert(
+          { id: user.id, avatar_url: avatarUrl, username: fallbackUsername },
+          { onConflict: "id" }
+        )
         .select();
       if (!dbError && updated && updated.length > 0) {
-        setProfile((p) => ({ ...(p || {}), avatar_url: avatarUrl }));
+        setProfile((p) => ({ ...(p || {}), avatar_url: avatarUrl, username: p?.username || fallbackUsername }));
       } else {
-        alert("الصورة انرفعت بس ما انحفظت بحسابك — تأكد من صلاحيات جدول profiles.");
+        alert("الصورة انرفعت بس ما انحفظت بحسابك: " + (dbError?.message || "خطأ غير معروف"));
       }
     } else {
       alert("فشل رفع الصورة: " + uploadError.message);
