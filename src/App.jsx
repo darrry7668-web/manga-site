@@ -6,7 +6,7 @@ import { supabase } from "./supabaseClient";
 // ---------- غيّر هذا لإيميلك عشان يصير حسابك هو الأدمن ----------
 const ADMIN_EMAIL = "dary776688@gmail.com";
 
-// ---------- بيانات تجريبية (استبدلها لاحقاً بمانجتك وفصولك) ----------
+// ---------- بيانات المانجا الأساسية (الاسم والوصف بس — الفصول تجي من قاعدة البيانات) ----------
 const MANGA = {
   title: "بليتش",
   subtitle: "BLEACH",
@@ -15,15 +15,6 @@ const MANGA = {
     "طالب ثانوي عادي يكتسب قدرات خارقة بعد لقاء غامض، فيجد نفسه مسؤولاً عن حماية عالمه من أرواح شريرة تهدد الأحياء والأموات على حد سواء. ترجمة خاصة، فصلاً بعد فصل.",
   status: "مستمرة",
   genres: ["أكشن", "خارق للطبيعة", "دراما"],
-  chapters: Array.from({ length: 12 }, (_, i) => {
-    const n = 12 - i;
-    return {
-      number: n,
-      title: n === 12 ? "اللقاء الأخير" : n === 1 ? "البداية" : `الفصل ${n}`,
-      pages: 6 + (n % 4),
-      date: n === 12 ? "اليوم" : n === 11 ? "منذ يومين" : `منذ ${n} أيام`,
-    };
-  }),
 };
 
 // ---------- توليد لوحة صفحة مانجا وهمية (تُستبدل لاحقاً بصورك) ----------
@@ -93,6 +84,33 @@ export default function App() {
   ];
 
   const [user, setUser] = useState(null);
+  const [chapters, setChapters] = useState([]);
+  const [chaptersLoading, setChaptersLoading] = useState(true);
+  const [chapterPages, setChapterPages] = useState([]); // روابط صور الفصل المفتوح حالياً
+
+  // ---------- جلب قائمة الفصول من قاعدة البيانات (تتحدث بدون أي تعديل بالكود) ----------
+  async function refetchChapters() {
+    const { data } = await supabase
+      .from("chapters")
+      .select("*")
+      .order("number", { ascending: false });
+    setChapters(data || []);
+    setChaptersLoading(false);
+  }
+
+  useEffect(() => {
+    refetchChapters();
+  }, []);
+
+  // ---------- جلب صور صفحات الفصل المفتوح ----------
+  async function fetchChapterPages(chapterNumber) {
+    const { data } = await supabase
+      .from("chapter_pages")
+      .select("page_number, image_url")
+      .eq("chapter_number", chapterNumber)
+      .order("page_number", { ascending: true });
+    setChapterPages(data || []);
+  }
   const [profile, setProfile] = useState(null); // { username, avatar_url }
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // 'login' | 'signup'
@@ -386,22 +404,23 @@ export default function App() {
   );
 
   const chapter = activeChapter
-    ? MANGA.chapters.find((c) => c.number === activeChapter)
+    ? chapters.find((c) => c.number === activeChapter)
     : null;
 
   function openChapter(num) {
     setActiveChapter(num);
     setPage(1);
     setView("reader");
+    fetchChapterPages(num);
   }
 
   function nextPage() {
     if (!chapter) return;
-    if (page < chapter.pages) {
+    if (page < chapter.pages_count) {
       setPage(page + 1);
     } else {
-      const idx = MANGA.chapters.findIndex((c) => c.number === chapter.number);
-      const nextCh = MANGA.chapters[idx - 1]; // القائمة تنازلية
+      const idx = chapters.findIndex((c) => c.number === chapter.number);
+      const nextCh = chapters[idx - 1]; // القائمة تنازلية
       if (nextCh) openChapter(nextCh.number);
     }
   }
@@ -411,11 +430,12 @@ export default function App() {
     if (page > 1) {
       setPage(page - 1);
     } else {
-      const idx = MANGA.chapters.findIndex((c) => c.number === chapter.number);
-      const prevCh = MANGA.chapters[idx + 1];
+      const idx = chapters.findIndex((c) => c.number === chapter.number);
+      const prevCh = chapters[idx + 1];
       if (prevCh) {
         setActiveChapter(prevCh.number);
-        setPage(prevCh.pages);
+        setPage(prevCh.pages_count);
+        fetchChapterPages(prevCh.number);
       }
     }
   }
@@ -849,6 +869,10 @@ export default function App() {
         .page-counter { color:#C9A227; font-size:13px; font-variant-numeric: tabular-nums; }
 
         .reader-body { max-width: 620px; margin: 0 auto; padding: 28px 16px 10px; animation: viewFadeIn 0.22s ease; }
+        .real-page {
+          width: 100%; display:block; border-radius: 4px;
+          border: 1px solid rgba(var(--text-rgb),0.12);
+        }
         .manga-page {
           display:flex; gap: 4px; height: 640px; background:#0c0a09;
           border: 1px solid rgba(var(--text-rgb),0.12); border-radius: 4px; padding: 6px;
@@ -1112,7 +1136,9 @@ export default function App() {
                   <div className="card-cover-title">{m.title}</div>
                 </div>
                 <div className="card-meta">
-                  الفصل {m.chapters[0].number} — {m.chapters[0].date}
+                  {chapters.length > 0
+                    ? `الفصل ${chapters[0].number} — ${chapters[0].release_date}`
+                    : "لا توجد فصول بعد"}
                 </div>
               </div>
             ))}
@@ -1171,7 +1197,7 @@ export default function App() {
                     <div className="card-cover-title">{m.title}</div>
                   </div>
                   <div className="card-meta">
-                    الفصل {m.chapters[0].number} — {m.chapters[0].date}
+                    {chapters.length > 0 ? `الفصل ${chapters[0].number} — ${chapters[0].release_date}` : "لا توجد فصول بعد"}
                   </div>
                 </div>
               ))}
@@ -1197,7 +1223,7 @@ export default function App() {
             <div className="meta">
               <div className="kicker">
                 <span className="dot" />
-                {MANGA.status} — {MANGA.chapters.length} فصل مترجم
+                {MANGA.status} — {chapters.length} فصل مترجم
               </div>
               <h1 className="title">{MANGA.title}</h1>
               <div className="subtitle">{MANGA.subtitle}</div>
@@ -1210,13 +1236,15 @@ export default function App() {
               <div className="cta-row">
                 <button
                   className="btn-primary"
-                  onClick={() => openChapter(MANGA.chapters[MANGA.chapters.length - 1].number)}
+                  disabled={chapters.length === 0}
+                  onClick={() => openChapter(chapters[chapters.length - 1].number)}
                 >
                   <BookOpen size={16} /> ابدأ من الفصل الأول
                 </button>
                 <button
                   className="btn-ghost"
-                  onClick={() => openChapter(MANGA.chapters[0].number)}
+                  disabled={chapters.length === 0}
+                  onClick={() => openChapter(chapters[0].number)}
                 >
                   أحدث فصل
                 </button>
@@ -1234,18 +1262,26 @@ export default function App() {
           <div className="chapters-section">
             <div className="section-head">
               <h2>الفصول</h2>
-              <span>{MANGA.chapters.length} فصل</span>
+              <span>{chapters.length} فصل</span>
             </div>
-            {MANGA.chapters.map((c) => (
-              <div className="chapter-row" key={c.number} onClick={() => openChapter(c.number)}>
-                <div className="chapter-num">{c.number}</div>
-                <div className="chapter-info">
-                  <div className="t">{c.title}</div>
-                  <div className="d">{c.pages} صفحات — {c.date}</div>
-                </div>
-                <ChevronLeft size={18} className="chapter-arrow" />
+            {chaptersLoading ? (
+              <div className="empty-state">جاري تحميل الفصول...</div>
+            ) : chapters.length === 0 ? (
+              <div className="empty-state">
+                ما فيه فصول مضافة بعد. {isAdmin && "أضفها من لوحة Supabase (جدول chapters)."}
               </div>
-            ))}
+            ) : (
+              chapters.map((c) => (
+                <div className="chapter-row" key={c.number} onClick={() => openChapter(c.number)}>
+                  <div className="chapter-num">{c.number}</div>
+                  <div className="chapter-info">
+                    <div className="t">{c.title}</div>
+                    <div className="d">{c.pages_count} صفحات — {c.release_date}</div>
+                  </div>
+                  <ChevronLeft size={18} className="chapter-arrow" />
+                </div>
+              ))
+            )}
           </div>
         </>
       )}
@@ -1259,11 +1295,19 @@ export default function App() {
             <div style={{ textAlign: "center" }}>
               <div className="ch-title">الفصل {chapter.number} — {chapter.title}</div>
             </div>
-            <div className="page-counter">{page} / {chapter.pages}</div>
+            <div className="page-counter">{page} / {chapter.pages_count}</div>
           </div>
 
           <div className="reader-body" key={`${chapter.number}-${page}`}>
-            <MockPage chapterNum={chapter.number} pageNum={page} />
+            {chapterPages.find((p) => p.page_number === page) ? (
+              <img
+                className="real-page"
+                src={chapterPages.find((p) => p.page_number === page).image_url}
+                alt={`صفحة ${page}`}
+              />
+            ) : (
+              <MockPage chapterNum={chapter.number} pageNum={page} />
+            )}
           </div>
           <div className="hint">استخدم الأسهم ← → للتنقل بين الصفحات</div>
 
@@ -1303,7 +1347,9 @@ export default function App() {
                     <div className="card-cover-title">{m.title}</div>
                   </div>
                   <div className="card-meta">
-                    الفصل {m.chapters[0].number} — {m.chapters[0].date}
+                    {chapters.length > 0
+                      ? `الفصل ${chapters[0].number} — ${chapters[0].release_date}`
+                      : "لا توجد فصول بعد"}
                   </div>
                 </div>
               ))}
