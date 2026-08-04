@@ -76,9 +76,30 @@ function KagiSeal({ size = 46, showLabel = false, logoUrl = null }) {
 }
 
 export default function App() {
-  const [view, setView] = useState("landing"); // 'landing' | 'explore' | 'manga' | 'reader' | 'favorites' | 'more'
-  const [activeChapter, setActiveChapter] = useState(null);
-  const [page, setPage] = useState(1);
+  const [view, setView] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("kagi_last_view") || "null");
+      return saved?.view || "landing";
+    } catch {
+      return "landing";
+    }
+  });
+  const [activeChapter, setActiveChapter] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("kagi_last_view") || "null");
+      return saved?.activeChapter ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const [page, setPage] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("kagi_last_view") || "null");
+      return saved?.page || 1;
+    } catch {
+      return 1;
+    }
+  });
   const [search, setSearch] = useState("");
   const [activeGenre, setActiveGenre] = useState("الكل");
   const [slide, setSlide] = useState(0);
@@ -90,6 +111,53 @@ export default function App() {
     { id: "white", color: "#F7F3EC" },
     { id: "blue", color: "#0B1622" },
   ];
+
+  // ---------- حفظ آخر صفحة ومكان توقف فيها القارئ عشان التحديث ما يرجعه للرئيسية ----------
+  useEffect(() => {
+    localStorage.setItem(
+      "kagi_last_view",
+      JSON.stringify({ view, activeChapter, page })
+    );
+  }, [view, activeChapter, page]);
+
+  // ---------- عند أول تحميل: لو كان بالقارئ، نجيب صور نفس الفصل اللي كان فيه ----------
+  useEffect(() => {
+    if (view === "reader" && activeChapter) {
+      fetchChapterPages(activeChapter);
+    }
+  }, []);
+
+  const ATHKAR = [
+    { main: "اللهم إني أسألك العافية في الدنيا والآخرة، اللهم إني أسألك العفو والعافية في ديني ودنياي، وأهلي ومالي، اللهم استُر عوراتي، وآمِن رَوعاتي، اللهم احفظني من بين يدي ومن خلفي، وعن يميني وعن شمالي، ومن فوقي، وأعوذ بعظمتك أن أُغتال من تحتي" },
+    { main: "يا حي يا قيُّوم، برحمتك أستغيث، أصلِح لي شأني كله، ولا تَكلني إلى نفسي طرْفة عينٍ" },
+    { main: "لا إله إلا الله وحده لا شريك له، له الملك وله الحمد، وهو على كل شيء قدير" },
+    { main: "سبحان الله وبحمده عدد خلقه، ورضا نفسه، وزِنة عرشه، ومداد كلماته" },
+    { main: "اللهم إني اسألُكَ العلم النافع والعمل الصالح والقلب الخاشع والرزق الواسع" },
+    { main: "اللَّهُم سخر لِي الأرض ومن عليها، والسَّماء ومن فِيها وعبادك الصَّالِحين مِنْ حولي" },
+    { main: "اللهم أعني على ذكرك وشكرك وحسن عبادتك" },
+    { main: "رب اجعلني مقيم الصلاة ومن ذريتي ربنا وتقبل دعاء" },
+    { main: "ربِ اشرح لي صدري ويسر لي أمري واحلل عقدة من لساني يفقهوا قولي" },
+    { main: "سبحانك اللهم وبحمْدك، أشهد أنْ لا إله إلا أنت، أستغفرك اللهم وأتوب إليك" },
+    { main: "اللهم افتح لي أبواب رحمتك" },
+    { main: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ" },
+    { main: "صلوا على النبي", sub: "اللهم صل وسلم على نبينا محمداً ﷺ" },
+  ];
+  const [dhikrIndex, setDhikrIndex] = useState(() => Math.floor(Math.random() * ATHKAR.length));
+
+  function nextRandomDhikr() {
+    setDhikrIndex((prev) => {
+      let next = Math.floor(Math.random() * ATHKAR.length);
+      while (next === prev && ATHKAR.length > 1) {
+        next = Math.floor(Math.random() * ATHKAR.length);
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    const t = setInterval(nextRandomDhikr, 7000);
+    return () => clearInterval(t);
+  }, []);
 
   const [user, setUser] = useState(null);
   const [welcomeVisible, setWelcomeVisible] = useState(false);
@@ -650,6 +718,18 @@ export default function App() {
         .auth-error { color:#ff8a76; font-size:13px; text-align:center; }
         .auth-notice { color:#8fd19e; font-size:13px; text-align:center; }
         .auth-submit { justify-content:center; width:100%; }
+
+        .dhikr-box {
+          max-width: 1000px; margin: 0 auto 20px; padding: 18px 22px;
+          background: rgba(var(--text-rgb),0.05); border: 1px solid rgba(var(--accent-rgb, 178,58,46),0.25);
+          border-radius: 12px; cursor: pointer; text-align:center; transition: border-color .2s ease;
+        }
+        .dhikr-box:hover { border-color: var(--accent); }
+        .dhikr-main {
+          font-family:'Tajawal'; font-weight:700; font-size: 15px; line-height: 2;
+          color: var(--text); animation: viewFadeIn 0.4s ease;
+        }
+        .dhikr-sub { font-size: 13px; color: var(--accent); margin-top: 6px; animation: viewFadeIn 0.4s ease; }
 
         .account-card {
           max-width: 1000px; margin: 0 auto; padding: 0 24px 60px;
@@ -1434,6 +1514,14 @@ export default function App() {
             <h2>حسابي</h2>
             <div className="rule" />
           </div>
+
+          <div className="dhikr-box" onClick={nextRandomDhikr}>
+            <div className="dhikr-main">{ATHKAR[dhikrIndex].main}</div>
+            {ATHKAR[dhikrIndex].sub && (
+              <div className="dhikr-sub">{ATHKAR[dhikrIndex].sub}</div>
+            )}
+          </div>
+
           <div className="account-card">
             {user ? (
               <div className="account-centered">
