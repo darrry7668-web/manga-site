@@ -155,7 +155,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    const t = setInterval(nextRandomDhikr, 7000);
+    const t = setInterval(nextRandomDhikr, 10000);
     return () => clearInterval(t);
   }, []);
 
@@ -771,6 +771,12 @@ export default function App() {
         .username-edit-row { display:flex; align-items:center; gap:8px; width:100%; max-width:280px; }
         .username-edit-input { text-align:center; }
         .account-signout { margin-top: 26px; }
+        .tiktok-link {
+          margin-top: 14px; font-size: 13px; color: var(--muted);
+          text-decoration: none; border-bottom: 1px dashed rgba(var(--text-rgb),0.3);
+          padding-bottom: 2px; transition: color .15s ease;
+        }
+        .tiktok-link:hover { color: var(--accent); }
 
         /* ---------- شريط علوي: تنقّل + تصنيفات + بحث ---------- */
         .nav-links { display:flex; align-items:center; gap: 22px; }
@@ -1585,6 +1591,15 @@ export default function App() {
                 <button className="btn-ghost account-signout" onClick={handleSignOut}>
                   <LogOut size={16} /> تسجيل الخروج
                 </button>
+
+                <a
+                  href="https://www.tiktok.com/@7.zak"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tiktok-link"
+                >
+                  تابعنا بتيك توك @7.zak
+                </a>
               </div>
             ) : (
               <>
