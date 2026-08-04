@@ -92,6 +92,7 @@ export default function App() {
   ];
 
   const [user, setUser] = useState(null);
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [chapters, setChapters] = useState([]);
   const [chaptersLoading, setChaptersLoading] = useState(true);
   const [chapterPages, setChapterPages] = useState([]); // روابط صور الفصل المفتوح حالياً
@@ -339,6 +340,8 @@ export default function App() {
         setAuthModalOpen(false);
         setAuthEmail("");
         setAuthPassword("");
+        setWelcomeVisible(true);
+        setTimeout(() => setWelcomeVisible(false), 4500);
       }
     }
     setAuthBusy(false);
@@ -587,6 +590,26 @@ export default function App() {
         .account-chip:hover { border-color: var(--accent); }
 
         /* ---------- نافذة تسجيل الدخول ---------- */
+        @keyframes welcomeIn {
+          from { opacity: 0; transform: translateY(-16px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .welcome-toast {
+          position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+          z-index: 200; max-width: 360px; width: calc(100% - 32px);
+          border-radius: 12px; padding: 16px 18px; color: #fff;
+          box-shadow: 0 14px 34px rgba(0,0,0,0.4);
+          animation: welcomeIn 0.35s ease;
+        }
+        .welcome-toast.on-light { color: #1c1815; }
+        .welcome-close {
+          position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.15);
+          border: none; border-radius: 50%; width: 22px; height: 22px;
+          color: inherit; cursor: pointer; display:flex; align-items:center; justify-content:center;
+        }
+        .welcome-title { font-family:'Lalezar'; font-size: 18px; margin-bottom: 4px; }
+        .welcome-text { font-size: 13px; opacity: 0.9; line-height: 1.7; }
+
         .auth-overlay {
           position: fixed; inset:0; z-index: 100; background: rgba(0,0,0,0.6);
           display:flex; align-items:center; justify-content:center; padding: 20px;
@@ -1023,6 +1046,21 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {welcomeVisible && (
+        <div
+          className={`welcome-toast ${theme === "white" ? "on-light" : ""}`}
+          style={{ background: THEMES.find((t) => t.id === theme)?.color }}
+        >
+          <button className="welcome-close" onClick={() => setWelcomeVisible(false)}>
+            <X size={14} />
+          </button>
+          <div className="welcome-title">أهلاً بك 👋</div>
+          <div className="welcome-text">
+            {profile?.username ? `يا ${profile.username}, ` : ""}سعداء برجوعك لـ كاغي 影 — شكراً لك!
+          </div>
+        </div>
+      )}
 
       {authModalOpen && (
         <div className="auth-overlay" onClick={() => setAuthModalOpen(false)}>
