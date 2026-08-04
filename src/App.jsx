@@ -1,6 +1,6 @@
 // Manga site · JSX
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette, User, LogOut, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette, User, LogOut, X, Eye, EyeOff, Camera } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
 // ---------- غيّر هذا لإيميلك عشان يصير حسابك هو الأدمن ----------
@@ -93,13 +93,17 @@ export default function App() {
   ];
 
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null); // { username, avatar_url }
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // 'login' | 'signup'
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authUsername, setAuthUsername] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const isAdmin = !!user && user.email === ADMIN_EMAIL;
 
@@ -113,6 +117,39 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // ---------- جلب بروفايل المستخدم (الاسم والصورة) بعد تسجيل الدخول ----------
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setProfile(data));
+  }, [user]);
+
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setAvatarUploading(true);
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabase
+      .storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+    if (!uploadError) {
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const avatarUrl = `${pub.publicUrl}?t=${Date.now()}`;
+      await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", user.id);
+      setProfile((p) => ({ ...(p || {}), avatar_url: avatarUrl }));
+    }
+    setAvatarUploading(false);
+  }
 
   // ---------- جلب مفضلة المستخدم من قاعدة البيانات بعد تسجيل الدخول ----------
   useEffect(() => {
@@ -151,7 +188,27 @@ export default function App() {
     setAuthNotice("");
     setAuthBusy(true);
     if (authMode === "signup") {
-      const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
+      const cleanUsername = authUsername.trim();
+      if (cleanUsername.length < 3) {
+        setAuthError("الاسم لازم يكون 3 أحرف على الأقل.");
+        setAuthBusy(false);
+        return;
+      }
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("username", cleanUsername)
+        .maybeSingle();
+      if (existing) {
+        setAuthError("هذا الاسم مستخدم من قبل، جرّب اسم ثاني.");
+        setAuthBusy(false);
+        return;
+      }
+      const { error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: { data: { username: cleanUsername } },
+      });
       if (error) setAuthError(error.message);
       else setAuthNotice("تم إنشاء الحساب! تحقق من إيميلك لتأكيده قبل تسجيل الدخول.");
     } else {
@@ -438,6 +495,12 @@ export default function App() {
           font-size: 14px; outline:none;
         }
         .auth-input:focus { border-color: var(--accent); }
+        .auth-password-wrap { position: relative; }
+        .auth-password-wrap .auth-input { width: 100%; padding-left: 40px; }
+        .auth-eye {
+          position:absolute; left: 10px; top: 50%; transform: translateY(-50%);
+          background:none; border:none; color: var(--muted); cursor:pointer; padding:4px;
+        }
         .auth-error { color:#ff8a76; font-size:13px; text-align:center; }
         .auth-notice { color:#8fd19e; font-size:13px; text-align:center; }
         .auth-submit { justify-content:center; width:100%; }
@@ -446,6 +509,20 @@ export default function App() {
           max-width: 1000px; margin: 0 auto; padding: 0 24px 60px;
         }
         .account-row { display:flex; align-items:center; gap:12px; margin-bottom: 18px; }
+        .avatar-upload {
+          position: relative; width: 56px; height: 56px; border-radius: 50%; cursor:pointer;
+          flex-shrink:0;
+        }
+        .avatar-img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+        .avatar-fallback {
+          width:100%; height:100%; border-radius:50%; background: rgba(var(--text-rgb),0.1);
+          display:flex; align-items:center; justify-content:center; color: var(--muted);
+        }
+        .avatar-edit-badge {
+          position:absolute; bottom:-2px; left:-2px; width:20px; height:20px; border-radius:50%;
+          background: var(--accent); color:#fff; display:flex; align-items:center; justify-content:center;
+          font-size:10px; border: 2px solid var(--bg);
+        }
         .account-email { font-weight:700; font-size:15px; }
         .account-role { color: var(--muted); font-size:12px; margin-top:2px; }
 
@@ -822,6 +899,17 @@ export default function App() {
               </button>
             </div>
             <form onSubmit={handleAuthSubmit} className="auth-form">
+              {authMode === "signup" && (
+                <input
+                  type="text"
+                  required
+                  minLength={3}
+                  placeholder="اسم المستخدم (يظهر لباقي الأعضاء)"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  className="auth-input"
+                />
+              )}
               <input
                 type="email"
                 required
@@ -830,15 +918,25 @@ export default function App() {
                 onChange={(e) => setAuthEmail(e.target.value)}
                 className="auth-input"
               />
-              <input
-                type="password"
-                required
-                minLength={6}
-                placeholder="كلمة المرور (6 أحرف على الأقل)"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                className="auth-input"
-              />
+              <div className="auth-password-wrap">
+                <input
+                  type={showAuthPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  placeholder="كلمة المرور (6 أحرف على الأقل)"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="auth-input"
+                />
+                <button
+                  type="button"
+                  className="auth-eye"
+                  onClick={() => setShowAuthPassword((s) => !s)}
+                  aria-label={showAuthPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                >
+                  {showAuthPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               {authError && <div className="auth-error">{authError}</div>}
               {authNotice && <div className="auth-notice">{authNotice}</div>}
               <button className="btn-primary auth-submit" disabled={authBusy} type="submit">
@@ -1133,10 +1231,26 @@ export default function App() {
             {user ? (
               <>
                 <div className="account-row">
-                  <User size={18} />
+                  <label className="avatar-upload">
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="avatar-img" />
+                    ) : (
+                      <div className="avatar-fallback"><User size={22} /></div>
+                    )}
+                    <div className="avatar-edit-badge">
+                      {avatarUploading ? "..." : <Camera size={12} />}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={handleAvatarUpload}
+                      disabled={avatarUploading}
+                    />
+                  </label>
                   <div>
-                    <div className="account-email">{user.email}</div>
-                    <div className="account-role">{isAdmin ? "حساب الأدمن" : "قارئ"}</div>
+                    <div className="account-email">{profile?.username || user.email.split("@")[0]}</div>
+                    <div className="account-role">{isAdmin ? "حساب الأدمن" : "قارئ"} — {user.email}</div>
                   </div>
                 </div>
                 <button className="btn-ghost" onClick={handleSignOut}>
