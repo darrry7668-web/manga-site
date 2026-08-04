@@ -96,6 +96,7 @@ export default function App() {
   const [chaptersLoading, setChaptersLoading] = useState(true);
   const [chapterPages, setChapterPages] = useState([]); // روابط صور الفصل المفتوح حالياً
   const [logoUrl, setLogoUrl] = useState(null);
+  const [mangaCoverUrl, setMangaCoverUrl] = useState(null);
 
   // ---------- جلب قائمة الفصول من قاعدة البيانات (تتحدث بدون أي تعديل بالكود) ----------
   async function refetchChapters() {
@@ -117,9 +118,20 @@ export default function App() {
     if (data?.value) setLogoUrl(data.value);
   }
 
+  // ---------- جلب رابط غلاف المانجا (منفصل تماماً عن شعار الموقع) ----------
+  async function refetchMangaCover() {
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "manga_cover_url")
+      .maybeSingle();
+    if (data?.value) setMangaCoverUrl(data.value);
+  }
+
   useEffect(() => {
     refetchChapters();
     refetchLogo();
+    refetchMangaCover();
   }, []);
 
   // ---------- جلب صور صفحات الفصل المفتوح ----------
@@ -1147,8 +1159,8 @@ export default function App() {
                 <div
                   className="card-cover"
                   style={
-                    m.cover
-                      ? { backgroundImage: `url(${m.cover})` }
+                    mangaCoverUrl
+                      ? { backgroundImage: `url(${mangaCoverUrl})` }
                       : { background: "var(--card-grad)" }
                   }
                 >
@@ -1209,8 +1221,8 @@ export default function App() {
                   <div
                     className="card-cover"
                     style={
-                      m.cover
-                        ? { backgroundImage: `url(${m.cover})` }
+                      mangaCoverUrl
+                        ? { backgroundImage: `url(${mangaCoverUrl})` }
                         : { background: "var(--card-grad)" }
                     }
                   >
@@ -1232,8 +1244,8 @@ export default function App() {
             <div
               className="cover"
               style={
-                MANGA.cover
-                  ? { backgroundImage: `url(${MANGA.cover})` }
+                mangaCoverUrl
+                  ? { backgroundImage: `url(${mangaCoverUrl})` }
                   : { background: "var(--card-grad)" }
               }
             >
@@ -1359,8 +1371,8 @@ export default function App() {
                   <div
                     className="card-cover"
                     style={
-                      m.cover
-                        ? { backgroundImage: `url(${m.cover})` }
+                      mangaCoverUrl
+                        ? { backgroundImage: `url(${mangaCoverUrl})` }
                         : { background: "var(--card-grad)" }
                     }
                   >
