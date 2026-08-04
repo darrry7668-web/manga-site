@@ -1,6 +1,10 @@
 // Manga site · JSX
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette } from "lucide-react";
+import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Search, Heart, Palette, User, LogOut, X } from "lucide-react";
+import { supabase } from "./supabaseClient";
+
+// ---------- غيّر هذا لإيميلك عشان يصير حسابك هو الأدمن ----------
+const ADMIN_EMAIL = "dary776688@email.com";
 
 // ---------- بيانات تجريبية (استبدلها لاحقاً بمانجتك وفصولك) ----------
 const MANGA = {
@@ -88,10 +92,83 @@ export default function App() {
     { id: "blue", color: "#0B1622" },
   ];
 
-  function toggleFavorite(title) {
-    setFavorites((prev) =>
-      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
-    );
+  const [user, setUser] = useState(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // 'login' | 'signup'
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
+
+  const isAdmin = !!user && user.email === ADMIN_EMAIL;
+
+  // ---------- جلب الجلسة الحالية والاستماع لتغيّرات تسجيل الدخول ----------
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // ---------- جلب مفضلة المستخدم من قاعدة البيانات بعد تسجيل الدخول ----------
+  useEffect(() => {
+    if (!user) {
+      setFavorites([]);
+      return;
+    }
+    supabase
+      .from("favorites")
+      .select("manga_title")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (!error && data) setFavorites(data.map((r) => r.manga_title));
+      });
+  }, [user]);
+
+  async function toggleFavorite(title) {
+    if (!user) {
+      setAuthModalOpen(true);
+      setAuthMode("login");
+      return;
+    }
+    const already = favorites.includes(title);
+    if (already) {
+      setFavorites((prev) => prev.filter((t) => t !== title));
+      await supabase.from("favorites").delete().eq("user_id", user.id).eq("manga_title", title);
+    } else {
+      setFavorites((prev) => [...prev, title]);
+      await supabase.from("favorites").insert({ user_id: user.id, manga_title: title });
+    }
+  }
+
+  async function handleAuthSubmit(e) {
+    e.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+    setAuthBusy(true);
+    if (authMode === "signup") {
+      const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
+      if (error) setAuthError(error.message);
+      else setAuthNotice("تم إنشاء الحساب! تحقق من إيميلك لتأكيده قبل تسجيل الدخول.");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
+      if (error) setAuthError(error.message);
+      else {
+        setAuthModalOpen(false);
+        setAuthEmail("");
+        setAuthPassword("");
+      }
+    }
+    setAuthBusy(false);
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setView("landing");
   }
 
   const SLIDES = [
@@ -321,6 +398,56 @@ export default function App() {
           transition: all .15s ease;
         }
         .icon-btn:hover { background: rgba(201,162,39,0.12); }
+        .account-chip {
+          display:flex; align-items:center; gap:6px;
+          background: rgba(var(--text-rgb),0.08); border:1px solid rgba(var(--text-rgb),0.18);
+          color: var(--text); padding: 7px 14px; border-radius: 999px; font-size:13px; cursor:pointer;
+          font-family:'Tajawal';
+        }
+        .account-chip:hover { border-color: var(--accent); }
+
+        /* ---------- نافذة تسجيل الدخول ---------- */
+        .auth-overlay {
+          position: fixed; inset:0; z-index: 100; background: rgba(0,0,0,0.6);
+          display:flex; align-items:center; justify-content:center; padding: 20px;
+          backdrop-filter: blur(3px);
+        }
+        .auth-modal {
+          background: var(--bg); border: 1px solid rgba(var(--text-rgb),0.15);
+          border-radius: 14px; padding: 28px 24px; width: 100%; max-width: 360px;
+          position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .auth-close {
+          position:absolute; top:14px; left:14px; background:none; border:none;
+          color: var(--muted); cursor:pointer;
+        }
+        .auth-title { font-family:'Lalezar'; font-size: 22px; margin: 0 0 16px; text-align:center; }
+        .auth-tabs {
+          display:flex; gap:6px; background: rgba(var(--text-rgb),0.06); border-radius: 999px;
+          padding: 4px; margin-bottom: 18px;
+        }
+        .auth-tab {
+          flex:1; background:none; border:none; padding: 8px; border-radius: 999px;
+          color: var(--muted); font-family:'Tajawal'; font-size:13px; cursor:pointer;
+        }
+        .auth-tab.active { background: var(--accent); color:#fff; font-weight:700; }
+        .auth-form { display:flex; flex-direction:column; gap:12px; }
+        .auth-input {
+          background: rgba(var(--text-rgb),0.06); border:1px solid rgba(var(--text-rgb),0.16);
+          border-radius: 8px; padding: 11px 14px; color: var(--text); font-family:'Tajawal';
+          font-size: 14px; outline:none;
+        }
+        .auth-input:focus { border-color: var(--accent); }
+        .auth-error { color:#ff8a76; font-size:13px; text-align:center; }
+        .auth-notice { color:#8fd19e; font-size:13px; text-align:center; }
+        .auth-submit { justify-content:center; width:100%; }
+
+        .account-card {
+          max-width: 1000px; margin: 0 auto; padding: 0 24px 60px;
+        }
+        .account-row { display:flex; align-items:center; gap:12px; margin-bottom: 18px; }
+        .account-email { font-weight:700; font-size:15px; }
+        .account-role { color: var(--muted); font-size:12px; margin-top:2px; }
 
         /* ---------- شريط علوي: تنقّل + تصنيفات + بحث ---------- */
         .nav-links { display:flex; align-items:center; gap: 22px; }
@@ -660,8 +787,67 @@ export default function App() {
           >
             المزيد
           </button>
+          {user ? (
+            <button className="account-chip" onClick={() => setView("more")}>
+              <User size={14} />
+              {isAdmin ? "الأدمن" : user.email.split("@")[0]}
+            </button>
+          ) : (
+            <button className="account-chip" onClick={() => setAuthModalOpen(true)}>
+              <User size={14} /> تسجيل الدخول
+            </button>
+          )}
         </div>
       </div>
+
+      {authModalOpen && (
+        <div className="auth-overlay" onClick={() => setAuthModalOpen(false)}>
+          <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="auth-close" onClick={() => setAuthModalOpen(false)}>
+              <X size={16} />
+            </button>
+            <h2 className="auth-title">{authMode === "login" ? "تسجيل الدخول" : "إنشاء حساب"}</h2>
+            <div className="auth-tabs">
+              <button
+                className={`auth-tab ${authMode === "login" ? "active" : ""}`}
+                onClick={() => { setAuthMode("login"); setAuthError(""); setAuthNotice(""); }}
+              >
+                دخول
+              </button>
+              <button
+                className={`auth-tab ${authMode === "signup" ? "active" : ""}`}
+                onClick={() => { setAuthMode("signup"); setAuthError(""); setAuthNotice(""); }}
+              >
+                حساب جديد
+              </button>
+            </div>
+            <form onSubmit={handleAuthSubmit} className="auth-form">
+              <input
+                type="email"
+                required
+                placeholder="الإيميل"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                className="auth-input"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                placeholder="كلمة المرور (6 أحرف على الأقل)"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                className="auth-input"
+              />
+              {authError && <div className="auth-error">{authError}</div>}
+              {authNotice && <div className="auth-notice">{authNotice}</div>}
+              <button className="btn-primary auth-submit" disabled={authBusy} type="submit">
+                {authBusy ? "..." : authMode === "login" ? "دخول" : "إنشاء الحساب"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div key={view} className="view-fade">
 
@@ -938,12 +1124,41 @@ export default function App() {
       )}
 
       {view === "more" && (
-        <div className="empty-state" style={{ marginTop: 60 }}>
-          قسم "المزيد" — بيصير فيه لاحقاً: من نحن، تواصل معنا، وإعدادات الحساب.
-        </div>
+        <>
+          <div className="section-title" style={{ marginTop: 24 }}>
+            <h2>المزيد</h2>
+            <div className="rule" />
+          </div>
+          <div className="account-card">
+            {user ? (
+              <>
+                <div className="account-row">
+                  <User size={18} />
+                  <div>
+                    <div className="account-email">{user.email}</div>
+                    <div className="account-role">{isAdmin ? "حساب الأدمن" : "قارئ"}</div>
+                  </div>
+                </div>
+                <button className="btn-ghost" onClick={handleSignOut}>
+                  <LogOut size={16} /> تسجيل الخروج
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "var(--muted)", marginBottom: 14 }}>
+                  سجّل دخول عشان تحفظ مفضلتك بشكل دائم.
+                </p>
+                <button className="btn-primary" onClick={() => setAuthModalOpen(true)}>
+                  <User size={16} /> تسجيل الدخول
+                </button>
+              </>
+            )}
+          </div>
+        </>
       )}
 
       </div>
+
 
       {/* ------- القائمة السفلية (جوال فقط) ------- */}
       <div className="bottom-nav">
