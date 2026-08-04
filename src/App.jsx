@@ -8,7 +8,7 @@ import { ChevronRight, ChevronLeft, ArrowRight, BookOpen, Home as HomeIcon, Sear
 const MANGA = {
   title: "بليتش",
   subtitle: "BLEACH",
-  cover: null,
+  cover: "https://i.ibb.co/Z1Gw6f26/IMG-8050.jpg",
   synopsis:
     "طالب ثانوي عادي يكتسب قدرات خارقة بعد لقاء غامض، فيجد نفسه مسؤولاً عن حماية عالمه من أرواح شريرة تهدد الأحياء والأموات على حد سواء. ترجمة خاصة، فصلاً بعد فصل.",
   status: "مستمرة",
