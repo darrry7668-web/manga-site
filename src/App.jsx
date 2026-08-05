@@ -656,7 +656,9 @@ export default function App() {
           position: sticky; top: 0; z-index: 20;
           background: rgba(var(--bg-rgb),0.92);
           backdrop-filter: blur(6px);
+          transition: transform .28s ease, opacity .28s ease;
         }
+        .topbar.hidden { transform: translateY(-100%); opacity: 0; pointer-events: none; }
         .brand { display:flex; align-items:center; gap:10px; }
         .seal-wrap { display:flex; align-items:center; gap:8px; }
         .seal-mark {
@@ -1040,7 +1042,11 @@ export default function App() {
         }
         .page-counter { color:#C9A227; font-size:13px; font-variant-numeric: tabular-nums; }
 
-        .reader-body { max-width: 620px; margin: 0 auto; padding: 28px 16px 10px; animation: viewFadeIn 0.22s ease; cursor: pointer; }
+        @keyframes pageTurnIn {
+          from { opacity: 0; transform: scale(0.985) translateY(6px); filter: blur(2px); }
+          to { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+        }
+        .reader-body { max-width: 620px; margin: 0 auto; padding: 28px 16px 10px; animation: pageTurnIn 0.38s cubic-bezier(.22,.61,.36,1); cursor: pointer; }
         .real-page {
           width: 100%; display:block; border-radius: 4px;
           border: 1px solid rgba(var(--text-rgb),0.12);
@@ -1087,7 +1093,7 @@ export default function App() {
       `}</style>
 
       {/* ------- الشريط العلوي ------- */}
-      <div className="topbar">
+      <div className={`topbar ${view === "reader" && !readerUiVisible ? "hidden" : ""}`}>
         <div className="brand">
           <div
             className="seal-btn"
