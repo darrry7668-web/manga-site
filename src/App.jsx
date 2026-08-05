@@ -164,6 +164,31 @@ export default function App() {
   const [chapters, setChapters] = useState([]);
   const [chaptersLoading, setChaptersLoading] = useState(true);
   const [chapterPages, setChapterPages] = useState([]); // روابط صور الفصل المفتوح حالياً
+  const [readerUiVisible, setReaderUiVisible] = useState(true);
+  const [readingDirection, setReadingDirection] = useState(() => {
+    return localStorage.getItem("kagi_reading_dir") || "rtl";
+  });
+
+  function toggleReadingDirection() {
+    setReadingDirection((prev) => {
+      const next = prev === "rtl" ? "ltr" : "rtl";
+      localStorage.setItem("kagi_reading_dir", next);
+      return next;
+    });
+  }
+
+  function handlePageTap(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    if (ratio < 0.32) {
+      readingDirection === "rtl" ? nextPage() : prevPage();
+    } else if (ratio > 0.68) {
+      readingDirection === "rtl" ? prevPage() : nextPage();
+    } else {
+      setReaderUiVisible((v) => !v);
+    }
+  }
+
   const [logoUrl, setLogoUrl] = useState(null);
   const [mangaCoverUrl, setMangaCoverUrl] = useState(null);
 
@@ -1002,14 +1027,20 @@ export default function App() {
           display:flex; align-items:center; justify-content:space-between;
           padding: 12px 20px; border-bottom: 1px solid rgba(var(--text-rgb),0.12);
           position: sticky; top:0; background: rgba(var(--bg-rgb),0.92); backdrop-filter: blur(6px);
-          z-index: 20;
+          z-index: 20; transition: transform .25s ease, opacity .25s ease;
         }
+        .reader-bar.hidden { transform: translateY(-100%); opacity: 0; pointer-events: none; }
         .reader-bar .ch-title { font-weight:700; font-size:14px; }
         .reader-bar .ch-sub { color:var(--muted); font-size:12px; }
         .back-link { display:flex; align-items:center; gap:6px; color:var(--soft); cursor:pointer; font-size:14px; background:none; border:none; }
+        .reader-bar-actions { display:flex; align-items:center; gap:10px; }
+        .dir-toggle {
+          font-size: 11px; background: rgba(var(--text-rgb),0.08); border:1px solid rgba(var(--text-rgb),0.18);
+          color: var(--text); padding: 5px 10px; border-radius: 999px; cursor:pointer; font-family:'Tajawal';
+        }
         .page-counter { color:#C9A227; font-size:13px; font-variant-numeric: tabular-nums; }
 
-        .reader-body { max-width: 620px; margin: 0 auto; padding: 28px 16px 10px; animation: viewFadeIn 0.22s ease; }
+        .reader-body { max-width: 620px; margin: 0 auto; padding: 28px 16px 10px; animation: viewFadeIn 0.22s ease; cursor: pointer; }
         .real-page {
           width: 100%; display:block; border-radius: 4px;
           border: 1px solid rgba(var(--text-rgb),0.12);
@@ -1036,14 +1067,16 @@ export default function App() {
         .nav-row {
           display:flex; align-items:center; justify-content:space-between;
           max-width: 620px; margin: 18px auto 60px; padding: 0 16px;
+          transition: opacity .25s ease, transform .25s ease;
         }
+        .nav-row.hidden, .hint.hidden { opacity: 0; transform: translateY(10px); pointer-events: none; height: 0; overflow: hidden; margin: 0; }
         .nav-btn {
           display:flex; align-items:center; gap:8px; background: rgba(var(--text-rgb),0.06);
           border: 1px solid rgba(var(--text-rgb),0.14); color:var(--text); padding: 10px 18px;
           border-radius: 8px; cursor:pointer; font-size: 14px;
         }
         .nav-btn:disabled { opacity: 0.3; cursor: default; }
-        .hint { text-align:center; color:var(--muted); font-size:12px; margin-bottom: 20px; }
+        .hint { text-align:center; color:var(--muted); font-size:12px; margin-bottom: 20px; transition: opacity .25s ease; }
 
         @media (max-width: 560px) {
           h1.title { font-size: 30px; }
@@ -1444,17 +1477,26 @@ export default function App() {
 
       {view === "reader" && chapter && (
         <>
-          <div className="reader-bar">
+          <div className={`reader-bar ${readerUiVisible ? "" : "hidden"}`}>
             <button className="back-link" onClick={() => setView("manga")}>
               <ArrowRight size={16} /> رجوع
             </button>
             <div style={{ textAlign: "center" }}>
               <div className="ch-title">الفصل {chapter.number} — {chapter.title}</div>
             </div>
-            <div className="page-counter">{page} / {chapter.pages_count}</div>
+            <div className="reader-bar-actions">
+              <button className="dir-toggle" onClick={toggleReadingDirection}>
+                {readingDirection === "rtl" ? "يمين ← يسار" : "يسار → يمين"}
+              </button>
+              <div className="page-counter">{page} / {chapter.pages_count}</div>
+            </div>
           </div>
 
-          <div className="reader-body" key={`${chapter.number}-${page}`}>
+          <div
+            className="reader-body"
+            key={`${chapter.number}-${page}`}
+            onClick={handlePageTap}
+          >
             {chapterPages.find((p) => p.page_number === page) ? (
               <img
                 className="real-page"
@@ -1465,9 +1507,11 @@ export default function App() {
               <MockPage chapterNum={chapter.number} pageNum={page} />
             )}
           </div>
-          <div className="hint">استخدم الأسهم ← → للتنقل بين الصفحات</div>
+          <div className={`hint ${readerUiVisible ? "" : "hidden"}`}>
+            اضغط يمين/يسار الصورة للتنقل، ومنتصفها لإخفاء الأزرار
+          </div>
 
-          <div className="nav-row">
+          <div className={`nav-row ${readerUiVisible ? "" : "hidden"}`}>
             <button className="nav-btn" onClick={nextPage}>
               التالي <ChevronLeft size={16} />
             </button>
